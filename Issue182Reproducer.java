@@ -8,6 +8,7 @@ import java.sql.*;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -76,17 +77,21 @@ public class Issue182Reproducer {
     static void printMem(Connection conn) throws Exception {
         Runtime runtime = Runtime.getRuntime();
         System.out.println(">>>>>>>");
-        System.out.println(" DB: " + NUM_FORMAT.format(readDBMem(conn)));
+        // Cannot be used on the same connection when result set
+        // streaming is enabled.
+        //System.out.println(" DB: " + NUM_FORMAT.format(readDBMem(conn)));
         System.out.println("JVM: " + NUM_FORMAT.format(runtime.totalMemory()/1024));
         System.out.println(" OS: " + NUM_FORMAT.format(readOSMem()));
         System.out.println("<<<<<<<");
     }
 
     public static void main(String[] args) throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:");
+        Properties props = new Properties();
+        props.put(org.duckdb.DuckDBDriver.JDBC_STREAM_RESULTS, true);
+        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:", props);
             Statement stmt = conn.createStatement()) {
-            stmt.execute("SET memory_limit='10GB'");
-            stmt.execute("SET threads='1'");
+            stmt.execute("SET memory_limit='4GB'");
+            stmt.execute("SET threads='8'");
             printMem(conn);
             try (ResultSet rs = stmt.executeQuery("SELECT * FROM read_parquet('../data/*.parquet') order by pickup_at")) {
                 printMem(conn);
